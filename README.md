@@ -4,6 +4,7 @@ Simple Laravel API + ghostscript extension. Nothing fancy, just plug and play.
 Because we are full of online apps with limits or bogus privacy
 ## Stack
 - Laravel
+- Pulse
 - Ghostscript (baked in docker)
 - Redis
 - Sqlite3 (mariadb/mysql can be used)

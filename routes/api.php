@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\API\PdfController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/pdfs/upload', [PdfController::class, 'upload']);
