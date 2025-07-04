@@ -110,6 +110,6 @@ class PdfService
         }
 
         // Generate URL
-        return url('api/pdfs/download/' . $document->id . '/' . $type);
+        return url('api/v1/pdfs/download/' . $document->id . '/' . $type);
     }
 }
