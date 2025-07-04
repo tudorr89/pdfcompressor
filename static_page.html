@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Compressor - Compress PDFs Online</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 20px;
+            margin-bottom: 30px;
+            background: linear-gradient(45deg, #f8f9ff, #f0f2ff);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #5a67d8;
+            background: linear-gradient(45deg, #f0f2ff, #e8ecff);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #4c51bf;
+            background: linear-gradient(45deg, #e8ecff, #ddd6fe);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            color: #4a5568;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #718096;
+            font-size: 0.9em;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .status-section.active {
+            display: block;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .file-info {
+            text-align: left;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-details {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background: #fef3cd;
+            color: #856404;
+        }
+
+        .status-processing {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-completed {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .compression-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: #333;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .processing {
+            animation: pulse 2s infinite;
+        }
+
+        .error-message {
+            color: #e53e3e;
+            margin-top: 15px;
+            padding: 15px;
+            background: #fed7d7;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .success-message {
+            color: #38a169;
+            margin-top: 15px;
+            padding: 15px;
+            background: #c6f6d5;
+            border-radius: 10px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .upload-area {
+                padding: 40px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>PDF Compressor</h1>
+    <p class="subtitle">Compress your PDF files quickly and easily</p>
+
+    <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">Click to select PDF files or drag and drop</div>
+        <div class="upload-hint">Maximum file size: 50MB</div>
+        <input type="file" id="fileInput" accept=".pdf" multiple>
+    </div>
+
+    <div class="error-message" id="errorMessage"></div>
+    <div class="success-message" id="successMessage"></div>
+
+    <div class="status-section" id="statusSection">
+        <h3 style="margin-bottom: 20px; color: #333;">Compression Status</h3>
+        <div id="statusContainer"></div>
+    </div>
+</div>
+
+<script>
+    class PDFCompressor {
+        constructor() {
+            this.apiBase = 'https://api.pdfcompressor.io/api/v1';
+            this.processingJobs = new Map();
+            this.init();
+        }
+
+        init() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+
+            // Click to upload
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // File selection
+            fileInput.addEventListener('change', (e) => {
+                this.handleFiles(e.target.files);
+            });
+
+            // Drag and drop
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                this.handleFiles(e.dataTransfer.files);
+            });
+        }
+
+        handleFiles(files) {
+            const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
+
+            if (pdfFiles.length === 0) {
+                this.showError('Please select only PDF files.');
+                return;
+            }
+
+            pdfFiles.forEach(file => {
+                if (file.size > 50 * 1024 * 1024) { // 50MB limit
+                    this.showError(`File ${file.name} is too large. Maximum size is 50MB.`);
+                    return;
+                }
+                this.uploadFile(file);
+            });
+        }
+
+        async uploadFile(file) {
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            try {
+                this.showStatusSection();
+                const jobId = this.createJobStatus(file);
+
+                const response = await fetch(`${this.apiBase}/pdfs/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                this.updateJobStatus(jobId, {
+                    documentId: result.document_id,
+                    status: result.status,
+                    message: result.message
+                });
+
+                this.startStatusPolling(result.document_id, jobId);
+                this.showSuccess('File uploaded successfully! Compression started.');
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                this.showError(`Failed to upload ${file.name}. Please try again.`);
+            }
+        }
+
+        createJobStatus(file) {
+            const jobId = Date.now().toString();
+            const statusContainer = document.getElementById('statusContainer');
+
+            const jobElement = document.createElement('div');
+            jobElement.className = 'status-item';
+            jobElement.id = `job-${jobId}`;
+            jobElement.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-details">Size: ${this.formatFileSize(file.size)}</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div class="status-badge status-pending">Uploading</div>
+                `;
+
+            statusContainer.appendChild(jobElement);
+
+            this.processingJobs.set(jobId, {
+                element: jobElement,
+                file: file,
+                status: 'uploading'
+            });
+
+            return jobId;
+        }
+
+        updateJobStatus(jobId, data) {
+            const job = this.processingJobs.get(jobId);
+            if (!job) return;
+
+            const statusBadge = job.element.querySelector('.status-badge');
+            const progressFill = job.element.querySelector('.progress-fill');
+
+            let statusClass = 'status-pending';
+            let statusText = data.status;
+            let progress = 0;
+
+            switch (data.status) {
+                case 'pending':
+                    statusClass = 'status-pending';
+                    statusText = 'Queued';
+                    progress = 25;
+                    break;
+                case 'processing':
+                    statusClass = 'status-processing';
+                    statusText = 'Processing';
+                    progress = 50;
+                    job.element.classList.add('processing');
+                    break;
+                case 'completed':
+                    statusClass = 'status-completed';
+                    statusText = 'Completed';
+                    progress = 100;
+                    job.element.classList.remove('processing');
+                    this.showCompressionResults(jobId, data);
+                    break;
+                case 'error':
+                    statusClass = 'status-error';
+                    statusText = 'Error';
+                    progress = 0;
+                    job.element.classList.remove('processing');
+                    break;
+            }
+
+            statusBadge.className = `status-badge ${statusClass}`;
+            statusBadge.textContent = statusText;
+            progressFill.style.width = `${progress}%`;
+
+            job.status = data.status;
+            job.data = data;
+        }
+
+        showCompressionResults(jobId, data) {
+            const job = this.processingJobs.get(jobId);
+            if (!job) return;
+
+            const fileInfo = job.element.querySelector('.file-info');
+            const originalSize = job.file.size;
+            const compressedSize = this.parseFileSize(data.compressed_size);
+            const savings = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+
+            fileInfo.innerHTML = `
+                    <div class="file-name">${data.original_filename}</div>
+                    <div class="compression-stats">
+                        <div class="stat-card">
+                            <div class="stat-label">Original</div>
+                            <div class="stat-value">${data.original_size}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Compressed</div>
+                            <div class="stat-value">${data.compressed_size}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Saved</div>
+                            <div class="stat-value">${savings}%</div>
+                        </div>
+                    </div>
+                    <button class="btn download-btn" onclick="compressor.downloadFile('${data.download_url}', '${data.original_filename}')">
+                        Download Compressed PDF
+                    </button>
+                `;
+        }
+
+        async startStatusPolling(documentId, jobId) {
+            const pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${this.apiBase}/pdfs/${documentId}/status`);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const status = await response.json();
+
+                    this.updateJobStatus(jobId, status);
+
+                    if (status.status === 'completed' || status.status === 'error') {
+                        clearInterval(pollInterval);
+                    }
+
+                } catch (error) {
+                    console.error('Status polling error:', error);
+                    clearInterval(pollInterval);
+                    this.updateJobStatus(jobId, { status: 'error' });
+                }
+            }, 2000); // Poll every 2 seconds
+        }
+
+        downloadFile(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename.replace('.pdf', '_compressed.pdf');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        parseFileSize(sizeStr) {
+            const match = sizeStr.match(/^([\d.]+)\s*(KB|MB|GB)$/i);
+            if (!match) return 0;
+
+            const value = parseFloat(match[1]);
+            const unit = match[2].toLowerCase();
+
+            const multipliers = { kb: 1024, mb: 1024 * 1024, gb: 1024 * 1024 * 1024 };
+            return value * (multipliers[unit] || 1);
+        }
+
+        showStatusSection() {
+            document.getElementById('statusSection').classList.add('active');
+        }
+
+        showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 5000);
+        }
+    }
+
+    // Initialize the PDF compressor when the page loads
+    const compressor = new PDFCompressor();
+</script>
+</body>
+</html>
