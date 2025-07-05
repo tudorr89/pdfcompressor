@@ -11,10 +11,12 @@ Because we are full of online apps with limits or bogus privacy
 - Horizon
 - Filament
 - Docker (optional)
+- ClamAV (optional) see https://github.com/tudorr89/clamav-api
+- Ollama AI (optional) to leverage best compression settings
 
 ### Test it!
 ```
-https://api.pdfcompressor.io
+https://pdfcompressor.io
 ```
 
 ## Installation

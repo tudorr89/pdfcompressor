@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Services\AIService;
 use App\Services\BytesConversionService;
+use App\Services\PdfAnalyzerService;
 use Illuminate\Http\Request;
 use App\Jobs\CompressPdfJob;
 use App\Models\PdfDocument;
@@ -14,10 +16,12 @@ use Illuminate\Support\Facades\Validator;
 class PdfController extends Controller
 {
     protected $pdfService;
+    protected $pdfAnalyzerService;
 
     public function __construct(PdfService $pdfService)
     {
         $this->pdfService = $pdfService;
+        $this->pdfAnalyzerService = new PdfAnalyzerService();
     }
 
     /**
@@ -35,6 +39,8 @@ class PdfController extends Controller
 
         try {
             $file = $request->file('pdf');
+            $analysis = $this->pdfAnalyzerService->analyzePdf($file);
+            $recommendations = ((new AIService())->getAIRecommendations($analysis));
             if(config('av.enabled')) {
                 // Scan PDF for viruses
                 $scanResult = $this->pdfService->scanPdfForViruses($file);
@@ -45,7 +51,7 @@ class PdfController extends Controller
             $document = $this->pdfService->storeOriginalPdf($file);
 
             // Dispatch compression job
-            CompressPdfJob::dispatch($document);
+            CompressPdfJob::dispatch($document,$recommendations);
 
             return response()->json([
                 'message' => 'PDF uploaded successfully and queued for compression',

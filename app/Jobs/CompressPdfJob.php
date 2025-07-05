@@ -19,17 +19,15 @@ class CompressPdfJob implements ShouldQueue
     public $tries = 3;
     public $timeout = 300; // 5 minutes
 
-    public function __construct(PdfDocument $document)
+    public function __construct(PdfDocument $document, public string $settings = null)
     {
-        $this->document = $document;
+
     }
 
     public function handle(PdfService $pdfService)
     {
         try {
-            //Log::info('Starting PDF compression for document ID: ' . $this->document->id);
-            $pdfService->compressPdf($this->document);
-            //Log::info('PDF compression completed for document ID: ' . $this->document->id);
+            $pdfService->compressPdf($this->document, $this->settings);
         } catch (\Exception $e) {
             Log::error('PDF compression job failed: ' . $e->getMessage());
 

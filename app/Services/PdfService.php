@@ -34,7 +34,7 @@ class PdfService
     /**
      * Compress PDF file using Ghostscript
      */
-    public function compressPdf(PdfDocument $document)
+    public function compressPdf(PdfDocument $document, string $settings = null)
     {
         try {
             $document->update(['status' => 'processing']);
@@ -59,7 +59,30 @@ class PdfService
             }
 
             // Run Ghostscript command for PDF compression
-            $process = Process::run('gs -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile='.$fullCompressedPath.' '.$originalPath);
+            $baseParams = [
+                'gs',
+                '-sDEVICE=pdfwrite',
+                '-dCompatibilityLevel=1.4',
+                '-dNOPAUSE',
+                '-dQUIET',
+                '-dBATCH',
+            ];
+
+            // Apply AI recommendations
+            $params = array_merge($baseParams, $settings['custom_params']);
+
+            // Add dynamic parameters based on analysis
+            if ($settings['image_downsample']) {
+                $params[] = '-dDownsampleColorImages=true';
+                $params[] = '-dColorImageResolution=150';
+            }
+
+            if ($settings['color_convert'] === 'gray') {
+                $params[] = '-sColorConversionStrategy=Gray';
+            }
+
+            $command = implode(' ', $params);
+            $process = Process::run('gs '.$settings.' -sOutputFile='.$fullCompressedPath.' '.$originalPath);
 
             if (!$process->successful()) {
                 throw new \Exception('PDF compression failed: ' . $process->errorOutput());
