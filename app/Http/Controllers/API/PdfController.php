@@ -35,6 +35,13 @@ class PdfController extends Controller
 
         try {
             $file = $request->file('pdf');
+            if(config('av.enabled')) {
+                // Scan PDF for viruses
+                $scanResult = $this->pdfService->scanPdfForViruses($file);
+                if (!$scanResult) {
+                    return response()->json(['error' => 'PDF contains a virus'], 400);
+                }
+            }
             $document = $this->pdfService->storeOriginalPdf($file);
 
             // Dispatch compression job

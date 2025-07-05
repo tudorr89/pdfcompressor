@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PdfDocument;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Process;
@@ -111,5 +112,16 @@ class PdfService
 
         // Generate URL
         return url('api/v1/pdfs/download/' . $document->id . '/' . $type);
+    }
+    /**
+     * Scan PDF for viruses
+     */
+    public function scanPdfForViruses($file)
+    {
+        $request = Http::attach('file', $file->getContent(), $file->getClientOriginalName())->post(config('av.api_url'));
+
+        $response = $request->json();
+
+        return $response['status']==='clean' ?? false;
     }
 }
