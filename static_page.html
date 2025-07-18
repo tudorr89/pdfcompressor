@@ -370,7 +370,7 @@
     <div class="upload-area" id="uploadArea">
         <div class="upload-icon">📄</div>
         <div class="upload-text">Click to select PDF files or drag and drop</div>
-        <div class="upload-hint">Maximum file size: 100MB</div>
+        <div class="upload-hint">Maximum file size: 500MB</div>
         <input type="file" id="fileInput" accept=".pdf" multiple>
     </div>
 
@@ -447,8 +447,8 @@
             }
 
             pdfFiles.forEach(file => {
-                if (file.size > 100 * 1024 * 1024) { // 100MB limit
-                    this.showError(`File ${file.name} is too large. Maximum size is 100MB.`);
+                if (file.size > 500 * 1024 * 1024) { // 500MB limit
+                    this.showError(`File ${file.name} is too large. Maximum size is 500MB.`);
                     return;
                 }
                 this.uploadFile(file);
