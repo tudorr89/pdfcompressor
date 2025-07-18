@@ -26,7 +26,7 @@ class PdfController extends Controller
     public function upload(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'pdf' => 'required|file|mimes:pdf|max:102400', // Max 100MB
+            'pdf' => 'required|file|mimes:pdf|max:502400', // Max 500MB
         ]);
 
         if ($validator->fails()) {

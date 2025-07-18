@@ -59,7 +59,7 @@ class PdfService
             }
 
             // Run Ghostscript command for PDF compression
-            $process = Process::run('gs -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile='.$fullCompressedPath.' '.$originalPath);
+            $process = Process::timeout(config('processor.gs_timeout'))->run('gs -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile='.$fullCompressedPath.' '.$originalPath);
 
             if (!$process->successful()) {
                 throw new \Exception('PDF compression failed: ' . $process->errorOutput());
@@ -118,7 +118,7 @@ class PdfService
      */
     public function scanPdfForViruses($file)
     {
-        $request = Http::attach('file', $file->getContent(), $file->getClientOriginalName())->post(config('av.api_url'));
+        $request = Http::timeout(config('processor.gs_timeout'))->attach('file', $file->getContent(), $file->getClientOriginalName())->post(config('av.api_url'));
 
         $response = $request->json();
 

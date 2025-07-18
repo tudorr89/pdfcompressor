@@ -11,6 +11,7 @@ Because we are full of online apps with limits or bogus privacy
 - Horizon
 - Filament
 - Docker (optional)
+- ClamAV (optional) see https://github.com/tudorr89/clamav-api
 
 ### Test it!
 ```
@@ -93,3 +94,4 @@ docker run -d -e WITH_HORIZON=true -e WITH_SCHEDULER=true -p <port>:8000 --rm <i
 - Tweak additional ghostscript options in the PDFService class line 61
 - Horizon / pulse / log-viewer available via /admin/login
 - 6 req/min via AppServiceProvider
+- Can make use of Clam AV if set via .env
