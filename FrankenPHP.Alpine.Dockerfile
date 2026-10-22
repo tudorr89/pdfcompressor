@@ -1,7 +1,7 @@
-# Accepted values: 8.3 - 8.2
-ARG PHP_VERSION=8.3
+# Pinned to PHP 8.3.36 (fixes CVE-2026-109618 / CVE-2026-109619)
+ARG PHP_VERSION=8.3.36
 
-ARG FRANKENPHP_VERSION=latest
+ARG FRANKENPHP_VERSION=1.13.2
 
 ARG COMPOSER_VERSION=latest
 
@@ -129,10 +129,10 @@ USER ${USER}
 
 # Custom .env support
 ARG ENV_FILE
-COPY --link --chown=${USER}:${USER} ${ENV_FILE:-.env} .env
+COPY --link --chown=${WWWUSER}:${WWWGROUP} ${ENV_FILE:-.env} .env
 
-COPY --link --chown=${USER}:${USER} --from=vendor /usr/bin/composer /usr/bin/composer
-COPY --link --chown=${USER}:${USER} composer.json composer.lock ./
+COPY --link --chown=${WWWUSER}:${WWWGROUP} --from=vendor /usr/bin/composer /usr/bin/composer
+COPY --link --chown=${WWWUSER}:${WWWGROUP} composer.json composer.lock ./
 
 RUN composer install \
     --no-dev \
@@ -142,8 +142,8 @@ RUN composer install \
     --no-scripts
     #--audit
 
-COPY --link --chown=${USER}:${USER} . .
-COPY --link --chown=${USER}:${USER} --from=build ${ROOT}/public public
+COPY --link --chown=${WWWUSER}:${WWWGROUP} . .
+COPY --link --chown=${WWWUSER}:${WWWGROUP} --from=build ${ROOT}/public public
 
 RUN mkdir -p \
     storage/framework/sessions \
@@ -153,15 +153,15 @@ RUN mkdir -p \
     storage/logs \
     bootstrap/cache && chmod -R a+rw storage
 
-COPY --link --chown=${USER}:${USER} deployment/supervisord.conf /etc/supervisor/
-COPY --link --chown=${USER}:${USER} deployment/octane/FrankenPHP/supervisord.frankenphp.conf /etc/supervisor/conf.d/
-COPY --link --chown=${USER}:${USER} deployment/supervisord.*.conf /etc/supervisor/conf.d/
-COPY --link --chown=${USER}:${USER} deployment/start-container /usr/local/bin/start-container
-COPY --link --chown=${USER}:${USER} deployment/healthcheck /usr/local/bin/healthcheck
-COPY --link --chown=${USER}:${USER} deployment/php.ini ${PHP_INI_DIR}/conf.d/99-octane.ini
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/supervisord.conf /etc/supervisor/
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/octane/FrankenPHP/supervisord.frankenphp.conf /etc/supervisor/conf.d/
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/supervisord.*.conf /etc/supervisor/conf.d/
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/start-container /usr/local/bin/start-container
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/healthcheck /usr/local/bin/healthcheck
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/php.ini ${PHP_INI_DIR}/conf.d/99-octane.ini
 
 # FrankenPHP embedded PHP configuration
-COPY --link --chown=${USER}:${USER} deployment/php.ini /lib/php.ini
+COPY --link --chown=${WWWUSER}:${WWWGROUP} deployment/php.ini /lib/php.ini
 
 RUN composer install \
     --classmap-authoritative \
