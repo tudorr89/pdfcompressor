@@ -166,8 +166,11 @@ RUN arch="$(apk --print-arch)" \
 RUN addgroup -g ${WWWGROUP} ${USER} \
     && adduser -D -h ${ROOT} -G ${USER} -u ${WWWUSER} -s /bin/sh ${USER}
 
+# Plain `supervisorctl` looks for /etc/supervisord.conf; point it at the
+# config copied below so operators do not need -c/-s every time.
 RUN mkdir -p ${ROOT} /var/log/supervisor /var/run/supervisor \
-    && chown -R ${USER}:${USER} ${ROOT} /var/log /var/run
+    && chown -R ${USER}:${USER} ${ROOT} /var/log /var/run \
+    && ln -sf /etc/supervisor/supervisord.conf /etc/supervisord.conf
 
 RUN cp ${PHP_INI_DIR}/php.ini-production ${PHP_INI_DIR}/php.ini
 
@@ -226,8 +229,9 @@ RUN composer dump-autoload \
     --no-ansi \
     && composer clear-cache
 
-# Cache what does not depend on runtime env (views, Filament components/icons).
-# config:cache/route:cache stay in start-container so runtime env overrides work.
+# Compile views and Filament components at build time as a smoke test (broken
+# Blade/Filament templates fail the image build). start-container clears and
+# rebuilds them at runtime so injected env vars are always respected.
 RUN php artisan view:cache \
     && php artisan filament:optimize
 

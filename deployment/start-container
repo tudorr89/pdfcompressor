@@ -23,9 +23,14 @@ initialStuff() {
 
     php artisan storage:link
 
-    # Single command for config + event + route + view caches.
-    # `optimize:clear` is intentionally NOT called: it would throw away the
-    # view cache compiled at build time on every container start.
+    # Clear first: `route:cache` (inside `optimize`) fails with a
+    # CompiledRouteCollection type error when a route cache is already present.
+    # A container restart keeps bootstrap/cache, so optimizing twice in a row
+    # used to crash the container and, with restart=always, crash-loop it.
+    # Clearing also guarantees caches are rebuilt from the runtime env.
+    php artisan optimize:clear
+
+    # Rebuild config + events + routes + views + Filament caches in one go.
     php artisan optimize
 }
 
