@@ -27,3 +27,5 @@ yarn-error.log
 /frankenphp
 frankenphp-worker.php
 build-app.sh
+
+AGENTS.local.md

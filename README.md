@@ -112,7 +112,7 @@ docker build -t <image-name>:<tag> -f FrankenPHP.Alpine.Dockerfile .
 Or build **and push** an environment image (uses a persistent BuildKit builder,
 so rebuilds reuse the PHP-extension/composer/frontend layers):
 ```
-./build-app.sh production   # bakes .env.production, pushes registry.example.com/pdfcompressor:production
+./build-app.sh production   # bakes .env.production, pushes the image to your registry
 ```
 
 Run image (default port 8000)

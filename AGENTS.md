@@ -1,52 +1,47 @@
 # AGENTS.md — pdfcompressor
 
-Project conventions discovered while operating this app. Infra-wide notes live
-in `~/Projects/infra/docs/applications.md` (published at
-<https://docs.rthc.cloud/applications/>).
+Laravel PDF-compression API: Laravel 13, Filament 5, PHP 8.4, FrankenPHP/Octane,
+Bun + Vite, MySQL, Redis, Horizon, optional ClamAV scanning.
 
-## Deploy
+Deployment hosts, IPs, paths and the private registry are deliberately **not**
+kept in this public repository. They live in:
 
-| | |
-|---|---|
-| Host | `compressor` = **x.x.x.x** (`ssh user@x.x.x.x`) |
-| App dir | `/home/user/compressor` |
-| Compose | `docker compose` — service `app`, container `app` |
-| Image | `registry.example.com/pdfcompressor:production` (private registry on node4) |
-| Port | `8000` (also proxied via Cloudflare) |
-| Mounts | `data/storage` → `storage` (files + logs), `data/.env` → `.env`, `data/database.sqlite` |
+- the private infra docs (application deployments runbook), and
+- the local-only `AGENTS.local.md` (gitignored).
 
-The image bakes `.env.production`, **but** the compose mount overrides it:
-change `/home/user/compressor/data/.env` (keep a backup) and
-`docker restart app`. The container re-caches config on boot.
+## Build & deploy (summary)
 
-## Build
+```bash
+# on the build host
+bash build-app.sh production        # builds linux/amd64 and pushes the image
 
-| | |
-|---|---|
-| Host | `node2` (tailnet `x.x.x.x`), `/home/user/build/pdfcompressor` |
-| Command | `bash build-app.sh production` (pushes to the registry) |
-| Builder | persistent `pdfcompressor-builder` (docker-container) |
-| Remote | GitHub `git@github.com:tudorr89/pdfcompressor.git` (node2 has no GitLab access) |
+# on the deploy host
+docker compose pull app && docker compose up -d app
+```
 
-`build-app.sh` and `.env.production` are **gitignored** — copy them to a new
-build host before building. App-only changes rebuild in ~25s; no-op builds in
-~3s. The build compiles FrankenPHP + all PHP extensions; if `apk upgrade`
-creeps back in, every build recompiles the extension layer (~5 min).
+`build-app.sh` and `.env.production` are gitignored — copy them to a new build
+host before building. Use a persistent `docker-container` BuildKit builder so
+the PHP-extension/composer/Bun layers are reused (app-only change ≈ 25s).
+
+The image bakes `.env.production`; the deployment's compose file may mount a
+runtime `.env` over it. If it does, edit that file (keep a backup) and restart
+the app container — the entrypoint re-caches config on boot.
 
 ## Runtime facts
 
-- Laravel 13.38, Filament 5, PHP **8.4.27**, FrankenPHP 1.13.2, Bun 1.4.2, Vite 8.
 - Healthcheck probes **`/up`** every 30s (served by an Octane worker). Never
   reintroduce `artisan octane:status` on a short interval.
-- Supervisor socket/pid: `/tmp/supervisor.sock`, `/tmp/supervisord.pid`.
-- `start-container` runs `optimize:clear` **before** `optimize` (route:cache
-  throws when a route cache already exists → crash loop with `restart: always`).
-- PHP 8.4 **JIT is disabled** (`opcache.jit=off`): it segfaults under Rosetta
-  on Apple Silicon and gives this IO-bound app nothing.
-- Queue timeouts must stay ordered: job 900s → Horizon 960s → Redis
+- Supervisor socket/pid live in `/tmp` (`supervisor.sock`, `supervisord.pid`)
+  because supervisord runs as the unprivileged app user.
+- `start-container` runs `optimize:clear` **before** `optimize`; `route:cache`
+  throws a `CompiledRouteCollection` error when a route cache already exists,
+  which crash-loops `restart: always` containers.
+- PHP 8.4 **JIT is disabled** (`opcache.jit=off`): it segfaults when the amd64
+  image runs under Rosetta and brings nothing to this IO-bound app.
+- Queue timeouts must stay ordered: job 900s → Horizon worker 960s → Redis
   `retry_after` 1020s. AV timeout `AV_TIMEOUT=300`.
-- Cloudflare's proxied request limit is 100MB on Free/Pro; the API itself
-  accepts 500MB (`php.ini` + Caddy `request_body`).
+- Cloudflare's proxied request-body limit is 100MB on Free/Pro; the API itself
+  accepts up to 500MB (php.ini + Caddy `request_body`).
 
 ## PDF compression
 
@@ -55,30 +50,31 @@ creeps back in, every build recompiles the extension layer (~5 min).
 - `GS_PDF_SETTINGS=/ebook`, `GS_IMAGE_RESOLUTION=120`, `GS_RECOMPRESS_IMAGES=true`
 - `-dPassThroughJPEGImages=false` — the big win on scanned PDFs
 - bicubic downsampling, CCITT G4 for 1-bit images, duplicate-image detection,
-  font subsetting, `/Info`/`/ID`/XMP metadata stripped, PDF 1.5.
+  font subsetting, optional `/Info`/`/ID`/XMP metadata stripped, PDF 1.5.
 
 Measured: 157MB image-only PDF → ~4MB (97%), 1.4MB scan → 213KB (85%).
 `/screen` + 72dpi is the aggressive profile; `0` resolution keeps the preset.
 
 ## Virus scanning (ClamAV)
 
-Separate stack on **x.x.x.x:5001** (`/scan`), repo `~/Projects/clamav-api`
-(`/home/user/clamav-api`). Scanning happens **inside `CompressPdfJob`**
-(streamed upload, async), not in the HTTP request. clamd limits are raised via
-`CLAMD_CONF_*` in that compose file (550M stream/file, 1G scan).
+Scanning happens **inside `CompressPdfJob`** (streamed upload, asynchronous),
+never in the HTTP request. The scanner is an HTTP wrapper around clamd
+(`AV_URL`, endpoints `POST /scan` + `GET /health`, see the `clamav-api`
+project). clamd defaults reject files >100MB via INSTREAM — its compose file
+raises `CLAMD_CONF_*` (550M stream/file, 1G scan). Scanner errors are retried;
+"infected" is terminal and deletes the upload.
 
-## Static landing page (Cloudflare)
+## Landing page (Cloudflare)
 
-`pdfcompressor.io` is **not** this container: it is a dashboard-managed
-Cloudflare deployment. `api.pdfcompressor.io` goes through the `cloudflared`
-tunnel on `compressor` → `:8000`.
+`static_page.html` is the source of the public landing page, which is a
+dashboard-managed Cloudflare deployment (not this container).
 
-- Source page: `static_page.html` in the repo root.
-- Upload it to the Cloudflare deployment as **`index.html`** (the filename is
-  the URL path; uploading `static_page.html` publishes `/static_page`).
-- The root `/` is Worker-intercepted: `/index.html` → 404, `/?any=query` → 404,
-  cached with `s-maxage=604800`. Purge the zone cache after uploading and keep
-  the Worker/route in mind — a static upload alone may not change `/`.
+- Upload it as **`index.html`** — the filename is the URL path; uploading
+  `static_page.html` publishes `/static_page`.
+- The root `/` may be Worker-intercepted: unknown query strings can 404,
+  `/index.html` can 404, and the response is cached with `s-maxage=604800`.
+  Purge the zone cache after uploading and check the Worker route if `/` does
+  not change.
 
 ## Quality
 
@@ -89,6 +85,6 @@ composer lint        # Larastan (level 5) + PHPMD 3
 
 ## Logs
 
-App logs: `/home/user/compressor/data/storage/logs` (bind mount). To clear:
-`docker compose stop app`, delete the log files, `docker compose up -d
---force-recreate app` (also resets the container's Docker logs).
+App logs live under the bind-mounted storage directory. To clear them: stop the
+app container, delete the log files, then `docker compose up -d
+--force-recreate app` (this also resets the container's Docker logs).
