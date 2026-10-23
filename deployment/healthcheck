@@ -20,7 +20,7 @@ healthcheck_port=${OCTANE_PORT:-8000}
 healthcheck_host=${HEALTHCHECK_HOST:-"127.0.0.1"}
 
 check_supervisor_program() {
-    if supervisorctl -s "unix:///var/run/supervisor.sock" status "$1" 2>/dev/null | grep -q "RUNNING"; then
+    if supervisorctl -s "unix:///tmp/supervisor.sock" status "$1" 2>/dev/null | grep -q "RUNNING"; then
         exit 0
     fi
 
