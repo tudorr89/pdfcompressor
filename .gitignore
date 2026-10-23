@@ -19,8 +19,10 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-build-app.sh
 **/caddy
-frankenphp
+# Root binary only: a bare `frankenphp` pattern also matched the
+# deployment/octane/FrankenPHP directory on case-insensitive filesystems and
+# silently kept the Caddyfile/supervisor config out of git.
+/frankenphp
 frankenphp-worker.php
 build-app.sh

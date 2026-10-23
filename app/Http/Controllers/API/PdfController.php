@@ -60,10 +60,10 @@ class PdfController extends Controller
     /**
      * Get PDF compression status
      */
-    public function status($id)
+    public function status($documentId)
     {
         try {
-            $document = $this->pdfService->getDocumentDetails($id);
+            $document = $this->pdfService->getDocumentDetails($documentId);
 
             $response = [
                 'id' => $document->id,
@@ -89,15 +89,15 @@ class PdfController extends Controller
     /**
      * Download the PDF file
      */
-    public function download($id, $type = 'compressed')
+    public function download($documentId, $type = 'compressed')
     {
         try {
-            $document = PdfDocument::findOrFail($id);
+            $document = PdfDocument::findOrFail($documentId);
 
-            if ($type === 'original') {
-                $path = $document->original_path;
-                $filename = $document->original_filename;
-            } else {
+            $path = $document->original_path;
+            $filename = $document->original_filename;
+
+            if ($type !== 'original') {
                 if ($document->status !== 'completed') {
                     return response()->json(['error' => 'Compressed PDF is not ready yet'], 404);
                 }

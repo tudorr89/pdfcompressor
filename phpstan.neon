@@ -1,0 +1,22 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - app
+        - config
+        - database/factories
+        - database/seeders
+        - routes
+        - tests
+
+    excludePaths:
+        - bootstrap/cache/*
+        - storage/*
+
+    tmpDir: bootstrap/cache/phpstan
+
+    # Makes $casts / $dates / accessors visible to PHPStan even when they are
+    # defined as methods instead of properties (Laravel 11+ style).
+    parseModelCastsMethod: true

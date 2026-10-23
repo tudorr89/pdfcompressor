@@ -49,6 +49,9 @@ class User extends Authenticatable implements FilamentUser
         ];
     }
 
+    /**
+     * @SuppressWarnings("PHPMD.UnusedFormalParameter")
+     */
     public function canAccessPanel(Panel $panel): bool
     {
         return $this->admin;

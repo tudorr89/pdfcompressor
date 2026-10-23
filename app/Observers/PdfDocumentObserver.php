@@ -8,22 +8,6 @@ use Illuminate\Support\Facades\Storage;
 class PdfDocumentObserver
 {
     /**
-     * Handle the PdfDocument "created" event.
-     */
-    public function created(PdfDocument $pdfDocument): void
-    {
-        //
-    }
-
-    /**
-     * Handle the PdfDocument "updated" event.
-     */
-    public function updated(PdfDocument $pdfDocument): void
-    {
-        //
-    }
-
-    /**
      * Handle the PdfDocument "deleted" event.
      */
     public function deleted(PdfDocument $pdfDocument): void
@@ -38,18 +22,11 @@ class PdfDocumentObserver
     }
 
     /**
-     * Handle the PdfDocument "restored" event.
-     */
-    public function restored(PdfDocument $pdfDocument): void
-    {
-        //
-    }
-
-    /**
      * Handle the PdfDocument "force deleted" event.
      */
     public function forceDeleted(PdfDocument $pdfDocument): void
     {
-        //
+        // The "deleted" event is enough; force deletes must clean up as well.
+        $this->deleted($pdfDocument);
     }
 }

@@ -11,6 +11,7 @@ Because we are full of online apps with limits or bogus privacy
 - Horizon
 - Filament
 - Docker (optional)
+- Bun (frontend build)
 - ClamAV (optional) see https://github.com/tudorr89/clamav-api
 
 ### Test it!
@@ -28,7 +29,10 @@ git clone git@github.com:tudorr89/pdfcompressor.git
 Deps
 ```
 composer install
+bun install
 ```
+
+Frontend assets are built with Bun (`bun run build`, lockfile `bun.lock`).
 Env creation
 ```
 cd pdfcompressor/ && cp .env.example .env
@@ -85,10 +89,30 @@ Build via:
 docker build -t <image-name>:<tag> -f FrankenPHP.Alpine.Dockerfile .
 ```
 
+Or build **and push** an environment image (uses a persistent BuildKit builder,
+so rebuilds reuse the PHP-extension/composer/frontend layers):
+```
+./build-app.sh production   # bakes .env.production, pushes registry.example.com/pdfcompressor:production
+```
+
 Run image (default port 8000)
 ```
 docker run -d -e WITH_HORIZON=true -e WITH_SCHEDULER=true -p <port>:8000 --rm <image-name>:<tag>
 ```
+
+### Healthcheck
+`CONTAINER_MODE=http` (default) probes Laravel's `/up` route through an
+existing Octane worker every 30s. Set `HEALTHCHECK_PATH` / `OCTANE_PORT` to
+override. `horizon`, `scheduler`, `worker`, `reverb` and `ssr` modes check the
+matching supervisor program instead of booting Artisan.
+
+### Static analysis & code quality
+```
+composer analyse   # Larastan / PHPStan (phpstan.neon)
+composer phpmd     # PHP Mess Detector (rulesets.xml)
+composer lint      # both of the above
+```
+
 ### Note
 - Scheduler command to delete pdfs older than 24H + data set via kernel
 - Tweak additional ghostscript options in the PDFService class line 61

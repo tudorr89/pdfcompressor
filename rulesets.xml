@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<ruleset name="Sane Laravel ruleset"
+         xmlns="http://pmd.sf.net/ruleset/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0
+                     http://pmd.sf.net/ruleset_xml_schema.xsd"
+         xsi:noNamespaceSchemaLocation="
+                     http://pmd.sf.net/ruleset_xml_schema.xsd">
+    <description>
+        Everything from the bundled PHP Mess Detector rulesets, with the few
+        adjustments a Laravel/Filament application needs:
+
+        * StaticAccess is disabled: Filament components, facades and Eloquent
+          models are static by design, so the rule only produces noise here.
+          PHPStan/Larastan covers the type-safety part.
+        * CouplingBetweenObjects is raised to 20: Filament resources naturally
+          reference many form/table classes.
+        * UnusedFormalParameter is suppressed per method where the framework
+          requires a signature (e.g. FilamentUser::canAccessPanel()).
+    </description>
+
+    <rule ref="rulesets/cleancode.xml">
+        <exclude name="StaticAccess" />
+    </rule>
+
+    <rule ref="rulesets/codesize.xml" />
+
+    <rule ref="rulesets/controversial.xml" />
+
+    <rule ref="rulesets/design.xml">
+        <exclude name="CouplingBetweenObjects" />
+    </rule>
+    <rule ref="rulesets/design.xml/CouplingBetweenObjects">
+        <properties>
+            <property name="maximum" value="20" />
+        </properties>
+    </rule>
+
+    <rule ref="rulesets/naming.xml" />
+
+    <rule ref="rulesets/unusedcode.xml" />
+</ruleset>

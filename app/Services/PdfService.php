@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\PdfDocument;
+use Exception;
+use RuntimeException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -48,7 +50,7 @@ class PdfService
             $compressedDir = dirname($fullCompressedPath);
             if (!file_exists($compressedDir)) {
                 if (!mkdir($compressedDir, 0777, true) && !is_dir($compressedDir)) {
-                    throw new \RuntimeException(sprintf('Directory "%s" was not created', $compressedDir));
+                    throw new RuntimeException(sprintf('Directory "%s" was not created', $compressedDir));
                 }
             }
             chmod($compressedDir, 0777);
@@ -62,7 +64,7 @@ class PdfService
             $process = Process::timeout(config('processor.gs_timeout'))->run('gs -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile='.$fullCompressedPath.' '.$originalPath);
 
             if (!$process->successful()) {
-                throw new \Exception('PDF compression failed: ' . $process->errorOutput());
+                throw new Exception('PDF compression failed: ' . $process->errorOutput());
             }
 
             $compressedSize = Storage::size($compressedPath);
@@ -79,7 +81,7 @@ class PdfService
             ]);
 
             return $document;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('PDF compression error: ' . $e->getMessage());
 
             $document->update([
@@ -94,9 +96,9 @@ class PdfService
     /**
      * Get PDF document details
      */
-    public function getDocumentDetails($id)
+    public function getDocumentDetails($documentId)
     {
-        return PdfDocument::findOrFail($id);
+        return PdfDocument::findOrFail($documentId);
     }
 
     /**
@@ -107,7 +109,7 @@ class PdfService
         $path = ($type === 'original') ? $document->original_path : $document->compressed_path;
 
         if (!$path) {
-            throw new \Exception("Requested file doesn't exist");
+            throw new Exception("Requested file doesn't exist");
         }
 
         // Generate URL
@@ -122,6 +124,6 @@ class PdfService
 
         $response = $request->json();
 
-        return $response['status']==='clean' ?? false;
+        return ($response['status'] ?? null) === 'clean';
     }
 }

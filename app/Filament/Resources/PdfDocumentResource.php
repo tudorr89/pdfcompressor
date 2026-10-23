@@ -53,9 +53,9 @@ class PdfDocumentResource extends Resource
                 Tables\Columns\TextColumn::make('original_filename')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('original_size')
-                    ->formatStateUsing(fn (string $state): string => BytesConversionService::filesize($state)),
+                    ->formatStateUsing(fn ($state): string => BytesConversionService::filesize((int) $state)),
                 Tables\Columns\TextColumn::make('compressed_size')
-                    ->formatStateUsing(fn (string $state): string => BytesConversionService::filesize($state)),
+                    ->formatStateUsing(fn ($state): string => BytesConversionService::filesize((int) $state)),
                 Tables\Columns\TextColumn::make('compression_ratio'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
@@ -64,6 +64,7 @@ class PdfDocumentResource extends Resource
                         'processing' => 'warning',
                         'completed' => 'success',
                         'failed' => 'danger',
+                        default => 'gray',
                     })
                     ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')

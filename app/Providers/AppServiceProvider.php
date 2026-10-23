@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Models\PdfDocument;
-use App\Models\User;
 use App\Observers\PdfDocumentObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
@@ -32,8 +31,6 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($request->user()?->id ?: $request->ip());
         });
         PdfDocument::observe(PdfDocumentObserver::class);
-        Gate::define('viewPulse', function (User $user) {
-            return true;
-        });
+        Gate::define('viewPulse', fn (): bool => true);
     }
 }

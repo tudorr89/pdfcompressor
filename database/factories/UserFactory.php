@@ -34,6 +34,8 @@ class UserFactory extends Factory
 
     /**
      * Indicate that the model's email address should be unverified.
+     *
+     * @SuppressWarnings("PHPMD.UnusedFormalParameter")
      */
     public function unverified(): static
     {
