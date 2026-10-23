@@ -75,6 +75,10 @@ The original file is deleted in that case.
   raises clamd's `StreamMaxLength`/`MaxFileSize`).
 - Compression timeout: `GS_TIMEOUT=900s` (Horizon worker timeout 960s, Redis
   `retry_after` 1020s).
+- Compression profile: `GS_PDF_SETTINGS` (`/screen`, `/ebook`, `/printer`,
+  `/prepress`), `GS_IMAGE_RESOLUTION` (dpi, `0` keeps the preset) and
+  `GS_RECOMPRESS_IMAGES` (re-encode embedded JPEGs — the biggest win on
+  scanned PDFs). Text stays vector; only images are downsampled/re-encoded.
 - Documents are deleted after 24 hours by the scheduler
   (`php artisan pdfs:delete --hours=24`), only once they are `completed` or
   `failed`.

@@ -59,18 +59,60 @@ class PdfService
 
         // Array arguments (no shell) so paths with spaces/quotes can never be
         // reinterpreted and no escaping is required.
-        $process = Process::timeout(config('processor.gs_timeout'))->run([
+        $recompress = (bool) config('processor.recompress_images');
+        $resolution = (int) config('processor.image_resolution');
+
+        $arguments = [
             config('processor.gs_binary'),
             '-sDEVICE=pdfwrite',
-            '-dPDFSETTINGS='.config('processor.pdf_settings'),
-            '-dCompatibilityLevel=1.4',
+            '-dCompatibilityLevel=1.5',
             '-dSAFER',
             '-dNOPAUSE',
             '-dQUIET',
             '-dBATCH',
-            '-sOutputFile='.$compressedFile,
-            $originalPath,
-        ]);
+            '-dPDFSETTINGS='.config('processor.pdf_settings'),
+
+            // Images: downsample to the target dpi, force JPEG for colour and
+            // grey (smallest), CCITT for 1-bit, and re-encode embedded
+            // JPEG/JPEG2000 data instead of copying it through untouched.
+            '-dDownsampleColorImages=true',
+            '-dDownsampleGrayImages=true',
+            '-dDownsampleMonoImages=true',
+            '-dColorImageDownsampleType=/Bicubic',
+            '-dGrayImageDownsampleType=/Bicubic',
+            '-dColorImageDownsampleThreshold=1.0',
+            '-dGrayImageDownsampleThreshold=1.0',
+            '-dMonoImageDownsampleThreshold=1.0',
+            '-dAutoFilterColorImages=false',
+            '-dColorImageFilter=/DCTEncode',
+            '-dAutoFilterGrayImages=false',
+            '-dGrayImageFilter=/DCTEncode',
+            '-dEncodeMonoImages=true',
+            '-dMonoImageFilter=/CCITTFaxEncode',
+            '-dPassThroughJPEGImages='.($recompress ? 'false' : 'true'),
+            '-dPassThroughJPXImages='.($recompress ? 'false' : 'true'),
+
+            // Structure: one copy of duplicated images, subsetted fonts, no
+            // optional timestamps/IDs/XMP metadata.
+            '-dDetectDuplicateImages=true',
+            '-dCompressFonts=true',
+            '-dSubsetFonts=true',
+            '-dEmbedAllFonts=true',
+            '-dPreserveAnnots=true',
+            '-dOmitInfoDate=true',
+            '-dOmitID=true',
+            '-dOmitXMP=true',
+        ];
+
+        if ($resolution > 0) {
+            $arguments[] = '-dColorImageResolution='.$resolution;
+            $arguments[] = '-dGrayImageResolution='.$resolution;
+        }
+
+        $arguments[] = '-sOutputFile='.$compressedFile;
+        $arguments[] = $originalPath;
+
+        $process = Process::timeout(config('processor.gs_timeout'))->run($arguments);
 
         $compressedSize = is_file($compressedFile) ? filesize($compressedFile) : 0;
 
