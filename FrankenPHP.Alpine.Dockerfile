@@ -15,7 +15,10 @@ ARG SUPERCRONIC_VERSION=0.2.49
 # Build frontend assets with Bun
 ###########################################
 
-FROM oven/bun:${BUN_VERSION}-alpine AS build
+# Assets are platform-independent, so build them on the native builder
+# platform. Under --platform=linux/amd64 on Apple Silicon this avoids running
+# Bun/Vite through QEMU (where it can spin at 100% CPU for minutes).
+FROM --platform=${BUILDPLATFORM} oven/bun:${BUN_VERSION}-alpine AS build
 
 ENV ROOT=/var/www/html \
     BUN_INSTALL_CACHE_DIR=/tmp/bun-cache
@@ -124,7 +127,8 @@ RUN apk update \
     && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
 
 # Install PHP extensions (dunglas/frankenphp already ships the toolchain).
-RUN install-php-extensions \
+# MAKEFLAGS lets every extension build use all CPUs available to the builder.
+RUN MAKEFLAGS="-j$(nproc)" install-php-extensions \
     bz2 \
     pcntl \
     mbstring \
