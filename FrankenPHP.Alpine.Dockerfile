@@ -45,7 +45,11 @@ FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-builder-php${PHP_VERSION}-alpine A
 
 COPY --from=caddy:builder /usr/bin/xcaddy /usr/bin/xcaddy
 
-RUN CGO_ENABLED=1 \
+# Persistent Go caches: a version bump recompiles FrankenPHP in ~1min instead
+# of re-downloading the whole module graph and rebuilding Caddy from scratch.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 \
     XCADDY_SETCAP=1 \
     XCADDY_GO_BUILD_FLAGS="-ldflags='-w -s' -tags=nobadger,nomysql,nopgx" \
     CGO_CFLAGS=$(php-config --includes) \
@@ -108,9 +112,14 @@ RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
 
 # Base tooling gets its own layer: bumping an extension below no longer
 # re-runs the whole apk transaction, and vice versa.
-RUN apk update \
-    && apk upgrade \
-    && apk add --no-cache \
+# `apk upgrade` is intentionally NOT used: it changes this layer whenever the
+# Alpine repositories move, which invalidates every layer below it (most
+# importantly the ~5 minute install-php-extensions layer). Security updates
+# come from bumping the pinned PHP_VERSION / FRANKENPHP_VERSION base images.
+# The cache mount keeps the package index + .apk files between builds.
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk update \
+    && apk add \
     bash \
     ca-certificates \
     curl \
@@ -124,7 +133,7 @@ RUN apk update \
     tzdata \
     unzip \
     wget \
-    && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+    && rm -rf /tmp/* /var/tmp/*
 
 # Install PHP extensions (dunglas/frankenphp already ships the toolchain).
 # MAKEFLAGS lets every extension build use all CPUs available to the builder.
@@ -168,20 +177,25 @@ RUN addgroup -g ${WWWGROUP} ${USER} \
 
 # Plain `supervisorctl` looks for /etc/supervisord.conf; point it at the
 # config copied below so operators do not need -c/-s every time.
+# Hardening: drop SUID/SGID bits from the base image here so the scan is cached
+# with this layer instead of running again on every application build.
 RUN mkdir -p ${ROOT} /var/log/supervisor /var/run/supervisor \
     && chown -R ${USER}:${USER} ${ROOT} /var/log /var/run \
-    && ln -sf /etc/supervisor/supervisord.conf /etc/supervisord.conf
+    && ln -sf /etc/supervisor/supervisord.conf /etc/supervisord.conf \
+    && { find / -xdev \( -perm -4000 -o -perm -2000 \) -type f -exec chmod a-s {} + 2>/dev/null || true; }
 
 RUN cp ${PHP_INI_DIR}/php.ini-production ${PHP_INI_DIR}/php.ini
 
 USER ${USER}
 
-# Composer's own cache is layered instead of mounted so the image stays
-# reproducible; it is only rebuilt when composer.json/lock change anyway.
+# Composer tarballs live in a BuildKit cache (not in the image), so changing
+# the lockfile re-downloads only what actually changed. uid/gid match
+# WWWUSER/WWWGROUP (1000) because the install runs as the app user.
 COPY --link --chown=${WWWUSER}:${WWWGROUP} --from=vendor /usr/bin/composer /usr/bin/composer
 COPY --link --chown=${WWWUSER}:${WWWGROUP} composer.json composer.lock ./
 
-RUN composer install \
+RUN --mount=type=cache,target=/tmp/composer-cache,uid=1000,gid=1000 \
+    COMPOSER_CACHE_DIR=/tmp/composer-cache composer install \
     --no-dev \
     --no-interaction \
     --no-autoloader \
@@ -237,8 +251,7 @@ RUN php artisan view:cache \
 
 RUN chmod +x /usr/local/bin/start-container /usr/local/bin/healthcheck \
     && chown ${WWWUSER}:${WWWGROUP} ${ROOT} \
-    && chown -R ${WWWUSER}:${WWWGROUP} storage bootstrap/cache public \
-    && { find / -xdev \( -perm -4000 -o -perm -2000 \) -type f -exec chmod a-s {} + 2>/dev/null || true; }
+    && chown -R ${WWWUSER}:${WWWGROUP} storage bootstrap/cache public
 
 RUN cat deployment/utilities.sh >> ${ROOT}/.bashrc
 
