@@ -219,6 +219,8 @@ return [
     |
     */
 
-    'max_execution_time' => 30,
+    // Large uploads are streamed in; 30s was too tight for multi-hundred-MB
+    // PDFs on slower links. Virus scanning/compression run in the queue.
+    'max_execution_time' => 300,
 
 ];

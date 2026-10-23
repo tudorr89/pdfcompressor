@@ -188,9 +188,11 @@ return [
             'maxProcesses' => 1,
             'maxTime' => 0,
             'maxJobs' => 0,
-            'memory' => 128,
+            // Ghostscript can run for minutes on large PDFs: the worker must
+            // outlive CompressPdfJob::$timeout (900s) and retry_after (1020s).
+            'memory' => 256,
             'tries' => 1,
-            'timeout' => 60,
+            'timeout' => 960,
             'nice' => 0,
         ],
     ],

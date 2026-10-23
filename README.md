@@ -63,6 +63,22 @@ curl -X POST \
   -F 'pdf=@/path/to/your/file.pdf'
 ```
 
+Uploads are queued: the endpoint answers `202` immediately and virus scanning
+(if enabled) plus Ghostscript compression run in Horizon. A virus is reported
+through the status endpoint as `{"status":"failed","error":"Virus detected"}`.
+The original file is deleted in that case.
+
+### Limits and retention
+- Upload: 500 MiB (PHP `upload_max_filesize=500M` / `post_max_size=512M`).
+- Virus scanning is enabled with `AV_ENABLED=true`; the ClamAV API must accept
+  files as large as the upload limit (see the `clamav-api` project, which
+  raises clamd's `StreamMaxLength`/`MaxFileSize`).
+- Compression timeout: `GS_TIMEOUT=900s` (Horizon worker timeout 960s, Redis
+  `retry_after` 1020s).
+- Documents are deleted after 24 hours by the scheduler
+  (`php artisan pdfs:delete --hours=24`), only once they are `completed` or
+  `failed`.
+
 ### Result
 ```
 {"message":"PDF uploaded successfully and queued for compression","document_id":"01972c96-e946-700b-bfe4-0e1db07c15f5","status":"pending"}

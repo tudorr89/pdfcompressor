@@ -5,52 +5,76 @@ namespace App\Jobs;
 use App\Models\PdfDocument;
 use App\Services\PdfService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
-class CompressPdfJob implements ShouldQueue
+class CompressPdfJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $document;
-    public $tries = 3;
-    public $timeout = 300; // 5 minutes
+    public int $tries = 3;
 
-    public function __construct(PdfDocument $document)
+    /**
+     * Ghostscript may need minutes for very large PDFs. Keep this below the
+     * Horizon worker timeout (960s) and Redis retry_after (1020s).
+     */
+    public int $timeout = 900;
+
+    /**
+     * @var array<int, int>
+     */
+    public array $backoff = [30, 120, 300];
+
+    public function __construct(public PdfDocument $document) {}
+
+    public function uniqueId(): string
     {
-        $this->document = $document;
+        return (string) $this->document->id;
     }
 
-    public function handle(PdfService $pdfService)
+    public function handle(PdfService $pdfService): void
     {
-        try {
-            //Log::info('Starting PDF compression for document ID: ' . $this->document->id);
-            $pdfService->compressPdf($this->document);
-            //Log::info('PDF compression completed for document ID: ' . $this->document->id);
-        } catch (\Exception $e) {
-            Log::error('PDF compression job failed: ' . $e->getMessage());
+        if (config('av.enabled')) {
+            $isClean = $pdfService->scanPdfForViruses(
+                Storage::disk('local')->path($this->document->original_path),
+                $this->document->original_filename,
+            );
 
-            if ($this->attempts() >= $this->tries) {
+            if (! $isClean) {
+                Log::warning('Uploaded PDF rejected by the virus scanner', [
+                    'document' => $this->document->id,
+                ]);
+
+                Storage::disk('local')->delete($this->document->original_path);
+
                 $this->document->update([
                     'status' => 'failed',
-                    'error_message' => 'Max retries exceeded: ' . $e->getMessage(),
+                    'error_message' => 'Virus detected',
                 ]);
-            }
 
-            throw $e;
+                return;
+            }
         }
+
+        $pdfService->compressPdf($this->document);
     }
 
-    public function failed(\Exception $exception)
+    public function failed(Throwable $exception): void
     {
-        Log::error('PDF compression job failed permanently: ' . $exception->getMessage());
+        Log::error('PDF compression job failed permanently', [
+            'document' => $this->document->id,
+            'exception' => $exception,
+        ]);
 
         $this->document->update([
             'status' => 'failed',
-            'error_message' => 'Job failed: ' . $exception->getMessage(),
+            'error_message' => 'Compression failed',
         ]);
     }
 }

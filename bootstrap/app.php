@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -13,6 +14,20 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Behind a TLS-terminating proxy, set TRUSTED_PROXIES (comma separated)
+        // so $request->ip() is the real client and not the proxy. Left empty
+        // by default: trusting arbitrary X-Forwarded-For headers would let
+        // clients spoof their IP and bypass the API rate limiter.
+        if ($proxies = env('TRUSTED_PROXIES')) {
+            $middleware->trustProxies(
+                at: array_map('trim', explode(',', (string) $proxies)),
+                headers: Request::HEADER_X_FORWARDED_FOR
+                    | Request::HEADER_X_FORWARDED_HOST
+                    | Request::HEADER_X_FORWARDED_PORT
+                    | Request::HEADER_X_FORWARDED_PROTO,
+            );
+        }
+
         $middleware->append(\App\Http\Middleware\ForceJsonResponse::class)
             ->statefulApi()
             ->throttleApi();

@@ -3,127 +3,161 @@
 namespace App\Services;
 
 use App\Models\PdfDocument;
-use Exception;
-use RuntimeException;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use RuntimeException;
 
 class PdfService
 {
+    private const DISK = 'local';
+
     /**
-     * Store original PDF file
+     * Store the uploaded PDF on the private disk.
      */
-    public function storeOriginalPdf($file)
+    public function storeOriginalPdf(UploadedFile $file): PdfDocument
     {
-        $originalFilename = $file->getClientOriginalName();
-        $originalSize = $file->getSize();
+        $filename = Str::uuid()->toString().'.pdf';
+        $path = $file->storeAs('pdfs/original', $filename, self::DISK);
 
-        // Generate a unique filename
-        $filename = time() . '_' . uniqid('', true) . '.pdf';
-        $path = $file->storeAs('pdfs/original', $filename, 'local');
+        if ($path === false) {
+            throw new RuntimeException('Could not store the uploaded PDF');
+        }
 
-        // Create PDF document record
         return PdfDocument::create([
-            'original_filename' => $originalFilename,
+            'original_filename' => $file->getClientOriginalName(),
             'original_path' => $path,
-            'original_size' => $originalSize,
+            'original_size' => $file->getSize(),
             'status' => 'pending',
         ]);
     }
 
     /**
-     * Compress PDF file using Ghostscript
+     * Compress a stored PDF with Ghostscript.
+     *
+     * @throws RuntimeException when the source is missing or Ghostscript fails
      */
-    public function compressPdf(PdfDocument $document)
+    public function compressPdf(PdfDocument $document): PdfDocument
     {
+        $disk = Storage::disk(self::DISK);
+
+        $originalPath = $disk->path($document->original_path);
+        $compressedPath = 'pdfs/compressed/'.pathinfo($document->original_path, PATHINFO_FILENAME).'_compressed.pdf';
+        $compressedFile = $disk->path($compressedPath);
+
+        if (! is_file($originalPath)) {
+            throw new RuntimeException('Source PDF is missing: '.$document->original_path);
+        }
+
+        $document->update(['status' => 'processing']);
+
+        File::ensureDirectoryExists(dirname($compressedFile), 0755);
+
+        // Array arguments (no shell) so paths with spaces/quotes can never be
+        // reinterpreted and no escaping is required.
+        $process = Process::timeout(config('processor.gs_timeout'))->run([
+            config('processor.gs_binary'),
+            '-sDEVICE=pdfwrite',
+            '-dPDFSETTINGS='.config('processor.pdf_settings'),
+            '-dCompatibilityLevel=1.4',
+            '-dSAFER',
+            '-dNOPAUSE',
+            '-dQUIET',
+            '-dBATCH',
+            '-sOutputFile='.$compressedFile,
+            $originalPath,
+        ]);
+
+        $compressedSize = is_file($compressedFile) ? filesize($compressedFile) : 0;
+
+        if (! $process->successful() || $compressedSize === 0) {
+            // Never leave a partial/empty file behind for a retry to reuse.
+            File::delete($compressedFile);
+
+            throw new RuntimeException(
+                'Ghostscript failed: '.trim($process->errorOutput() ?: $process->output() ?: 'empty output')
+            );
+        }
+
+        $originalSize = (int) $document->original_size;
+        $compressionRatio = $originalSize > 0
+            ? round(($originalSize - $compressedSize) / $originalSize * 100, 2)
+            : 0.0;
+
+        $document->update([
+            'compressed_path' => $compressedPath,
+            'compressed_size' => $compressedSize,
+            'compression_ratio' => $compressionRatio,
+            'status' => 'completed',
+            'error_message' => null,
+        ]);
+
+        return $document;
+    }
+
+    public function getDocumentDetails(string $documentId): ?PdfDocument
+    {
+        return PdfDocument::find($documentId);
+    }
+
+    public function getDownloadUrl(PdfDocument $document, string $type = 'compressed'): string
+    {
+        $path = $type === 'original' ? $document->original_path : $document->compressed_path;
+
+        if (! $path) {
+            throw new RuntimeException("Requested file doesn't exist");
+        }
+
+        return route('pdfs.download', ['id' => $document->id, 'type' => $type]);
+    }
+
+    /**
+     * Stream the file to the ClamAV API.
+     *
+     * @return bool true when clean, false when a virus was found
+     *
+     * @throws RuntimeException when the scanner cannot be reached or answers unexpectedly
+     */
+    public function scanPdfForViruses(string $filePath, ?string $filename = null): bool
+    {
+        if (! is_file($filePath)) {
+            throw new RuntimeException('Could not open the PDF for scanning');
+        }
+
+        $handle = fopen($filePath, 'rb');
+
+        if ($handle === false) {
+            throw new RuntimeException('Could not open the PDF for scanning');
+        }
+
         try {
-            $document->update(['status' => 'processing']);
-
-            $originalPath = storage_path('app/private/' . $document->original_path);
-            $compressedFilename = pathinfo($document->original_path, PATHINFO_FILENAME) . '_compressed.pdf';
-            $compressedPath = 'pdfs/compressed/' . $compressedFilename;
-            $fullCompressedPath = storage_path('app/private/' . $compressedPath);
-
-            // Ensure the directory exists with proper permissions
-            $compressedDir = dirname($fullCompressedPath);
-            if (!file_exists($compressedDir)) {
-                if (!mkdir($compressedDir, 0777, true) && !is_dir($compressedDir)) {
-                    throw new RuntimeException(sprintf('Directory "%s" was not created', $compressedDir));
-                }
+            // Stream the file instead of reading it into memory: uploads can be
+            // several hundred MB and would otherwise exhaust the worker.
+            $response = Http::connectTimeout(config('av.connect_timeout'))
+                ->timeout(config('av.timeout'))
+                ->acceptJson()
+                ->attach('file', $handle, $filename ?: basename($filePath))
+                ->post(config('av.api_url'));
+        } catch (ConnectionException $e) {
+            throw new RuntimeException('Virus scanner is unreachable', 0, $e);
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
             }
-            chmod($compressedDir, 0777);
-
-            // Make sure the original file is readable
-            if (file_exists($originalPath)) {
-                chmod($originalPath, 0644);
-            }
-
-            // Run Ghostscript command for PDF compression
-            $process = Process::timeout(config('processor.gs_timeout'))->run('gs -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile='.$fullCompressedPath.' '.$originalPath);
-
-            if (!$process->successful()) {
-                throw new Exception('PDF compression failed: ' . $process->errorOutput());
-            }
-
-            $compressedSize = Storage::size($compressedPath);
-            $compressionRatio = ($document->original_size > 0)
-                ? round(($document->original_size - $compressedSize) / $document->original_size * 100, 2)
-                : 0;
-
-            // Update document record
-            $document->update([
-                'compressed_path' => $compressedPath,
-                'compressed_size' => $compressedSize,
-                'compression_ratio' => $compressionRatio,
-                'status' => 'completed',
-            ]);
-
-            return $document;
-        } catch (Exception $e) {
-            Log::error('PDF compression error: ' . $e->getMessage());
-
-            $document->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-            ]);
-
-            throw $e;
-        }
-    }
-
-    /**
-     * Get PDF document details
-     */
-    public function getDocumentDetails($documentId)
-    {
-        return PdfDocument::findOrFail($documentId);
-    }
-
-    /**
-     * Get download URL for the PDF
-     */
-    public function getDownloadUrl(PdfDocument $document, $type = 'compressed')
-    {
-        $path = ($type === 'original') ? $document->original_path : $document->compressed_path;
-
-        if (!$path) {
-            throw new Exception("Requested file doesn't exist");
         }
 
-        // Generate URL
-        return url('api/v1/pdfs/download/' . $document->id . '/' . $type);
-    }
-    /**
-     * Scan PDF for viruses
-     */
-    public function scanPdfForViruses($file)
-    {
-        $request = Http::timeout(config('processor.gs_timeout'))->attach('file', $file->getContent(), $file->getClientOriginalName())->post(config('av.api_url'));
+        if (! $response->successful()) {
+            throw new RuntimeException('Virus scanner returned HTTP '.$response->status());
+        }
 
-        $response = $request->json();
-
-        return ($response['status'] ?? null) === 'clean';
+        return match ($response->json('status')) {
+            'clean' => true,
+            'infected' => false,
+            default => throw new RuntimeException('Virus scanner returned an unexpected response'),
+        };
     }
 }

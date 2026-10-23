@@ -8,29 +8,29 @@ use Illuminate\Console\Command;
 
 class DeletePdfsCommand extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'pdfs:delete';
+    protected $signature = 'pdfs:delete {--hours=24 : Retention window in hours}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Command description';
+    protected $description = 'Delete processed PDF documents and their files after the retention window';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle()
+    public function handle(): int
     {
-        $pdfs = PdfDocument::where('created_at', '<=', now()->subMinute())->get();
+        $hours = max(1, (int) $this->option('hours'));
+        $deleted = 0;
 
-        foreach ($pdfs as $pdf) {
-            dispatch(new DeletePdfsJob($pdf));
-        }
+        // Only finished documents: deleting rows that are still pending or
+        // processing would break in-flight uploads and leave orphaned files.
+        PdfDocument::query()
+            ->whereIn('status', ['completed', 'failed'])
+            ->where('created_at', '<=', now()->subHours($hours))
+            ->chunkById(200, function ($documents) use (&$deleted) {
+                foreach ($documents as $document) {
+                    DeletePdfsJob::dispatch($document);
+                    $deleted++;
+                }
+            });
+
+        $this->info("Queued {$deleted} expired document(s) for deletion.");
+
+        return self::SUCCESS;
     }
 }

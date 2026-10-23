@@ -54,6 +54,13 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Keep generated URLs on https when the public URL is https (production
+    // behind a TLS-terminating proxy). Disable for plain-HTTP deployments.
+    'force_https' => (bool) env(
+        'APP_FORCE_HTTPS',
+        str_starts_with((string) env('APP_URL', ''), 'https://')
+    ),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
