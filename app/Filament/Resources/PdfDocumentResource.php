@@ -3,45 +3,45 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PdfDocumentResource\Pages;
-use App\Filament\Resources\PdfDocumentResource\RelationManagers;
 use App\Models\PdfDocument;
 use App\Services\BytesConversionService;
-use App\Services\PdfService;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Storage;
 
 class PdfDocumentResource extends Resource
 {
     protected static ?string $model = PdfDocument::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('original_filename')
+        return $schema
+            ->components([
+                TextInput::make('original_filename')
                     ->required(),
-                Forms\Components\TextInput::make('original_path')
+                TextInput::make('original_path')
                     ->required(),
-                Forms\Components\TextInput::make('compressed_path'),
-                Forms\Components\TextInput::make('original_size')
+                TextInput::make('compressed_path'),
+                TextInput::make('original_size')
                     ->required()
                     ->numeric(),
-                Forms\Components\TextInput::make('compressed_size')
+                TextInput::make('compressed_size')
                     ->numeric(),
-                Forms\Components\TextInput::make('compression_ratio')
+                TextInput::make('compression_ratio')
                     ->numeric(),
-                Forms\Components\TextInput::make('status')
+                TextInput::make('status')
                     ->required(),
-                Forms\Components\Textarea::make('error_message')
+                Textarea::make('error_message')
                     ->columnSpanFull(),
             ]);
     }
@@ -50,14 +50,14 @@ class PdfDocumentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('original_filename')
+                TextColumn::make('original_filename')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('original_size')
+                TextColumn::make('original_size')
                     ->formatStateUsing(fn ($state): string => BytesConversionService::filesize((int) $state)),
-                Tables\Columns\TextColumn::make('compressed_size')
+                TextColumn::make('compressed_size')
                     ->formatStateUsing(fn ($state): string => BytesConversionService::filesize((int) $state)),
-                Tables\Columns\TextColumn::make('compression_ratio'),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('compression_ratio'),
+                TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'pending' => 'gray',
@@ -67,11 +67,11 @@ class PdfDocumentResource extends Resource
                         default => 'gray',
                     })
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -79,14 +79,16 @@ class PdfDocumentResource extends Resource
             ->filters([
                 //
             ])
-            ->actions([
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\Action::make('download')
-                    ->action(fn (PdfDocument $document) => Storage::disk('local')->download($document->compressed_path))
+            ->recordActions([
+                Action::make('download')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->visible(fn (PdfDocument $record): bool => $record->status === 'completed' && $record->compressed_path !== null)
+                    ->action(fn (PdfDocument $record) => Storage::disk('local')->download((string) $record->compressed_path)),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -102,8 +104,6 @@ class PdfDocumentResource extends Resource
     {
         return [
             'index' => Pages\ListPdfDocuments::route('/'),
-            //'create' => Pages\CreatePdfDocument::route('/create'),
-            //'edit' => Pages\EditPdfDocument::route('/{record}/edit'),
         ];
     }
 

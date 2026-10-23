@@ -4,8 +4,8 @@
 # to "changes on every commit" so BuildKit can reuse the expensive layers
 # (PHP extensions, composer install, frontend build) between deploys.
 
-# Pinned to PHP 8.3.36 (fixes CVE-2026-109618 / CVE-2026-109619)
-ARG PHP_VERSION=8.3.36
+# Pinned to PHP 8.4.27 (Laravel 13 needs the Pdo\Mysql class, PHP 8.4+).
+ARG PHP_VERSION=8.4.27
 ARG FRANKENPHP_VERSION=1.13.2
 ARG COMPOSER_VERSION=2.9
 ARG BUN_VERSION=1.4.2

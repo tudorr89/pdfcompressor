@@ -28,7 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         }
 
-        $middleware->append(\App\Http\Middleware\ForceJsonResponse::class)
+        // JSON only for the API: making it global also forced JSON on the
+        // Filament panel, turning its auth redirects into 401 responses.
+        $middleware->api(prepend: [\App\Http\Middleware\ForceJsonResponse::class])
             ->statefulApi()
             ->throttleApi();
     })
